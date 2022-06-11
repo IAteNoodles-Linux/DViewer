@@ -20,7 +20,7 @@ def forge_connection(user: str, password: str, host: str, database: str):
         print("Error %d: %s" % (e.args[0], e.args[1]))
         sys.exit(1)
 
-def send_command(connection ,command: str, commit=False, fetch=True|int):
+def send_command(connection ,command: str, commit=False, fetch=True):
     """
     Send a command to the database and return the result
 
