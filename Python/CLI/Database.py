@@ -64,6 +64,13 @@ def print__data_as_dictionary(key: list,data: tuple):
     for i in range(len(key)):
         print(key[i], data[i])
 
+def show_databases(connection):
+    """
+    Show all databases.
+    """
+    command = "SHOW DATABASES"
+    return send_command(connection, command)
+
 def show_permissions_on_database(connection, database: str):
     """
     Show the permissions on a database.
@@ -98,14 +105,17 @@ def switch_database(connection, database: str):
     command = "USE %s" % database
     return send_command(connection, command)
 
-def show_tables(connection):
+def show_tables(connection, *args):
     """
     Show all tables in the database.
     """
-    command = "SHOW TABLES"
+    if len(args) != 0:
+        command = "SHOW TABLES FROM %s" % args[0]
+    else:
+        command = "SHOW TABLES"
     return send_command(connection, command)
 
-def get_columns_and_types(connection, table_name: str):
+def show_columns(connection, table_name: str):
     """
     Get the columns and types of a table.
 

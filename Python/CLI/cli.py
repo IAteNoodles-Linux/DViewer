@@ -27,33 +27,58 @@ link = Database.forge_connection(args.user, args.password, args.hostname, args.d
 # Greetings.
 
 print("DViewer")
-def show_connection():
+
+commands = ["help", "status", "show"]
+
+def status():
     print("User: " + args.user)
     print("Host: " + args.hostname)
     print("Database: " + args.database)
 
-commands = ["help", "status", "show"]
-
 def show_help(command: str):
     if command not in commands:
         print("Unknown command: " + command)
-        return False
+        return
     if command == "help":
         print("help: Show this help message.")
     elif command == "status":
         print("status: Show the status of the database connection.")
     elif command == "show":
         print("show: Shows the connents.")
+        print("Usage: show [database]|[table]|[column]")
         print("show database: Displays the list of databases.")
-        print("show table: Displays the list of tables.")
+        print("show table: Displays the list of tables of the current database.")
+        print("show table <database>: Displays the list of tables of the specified database.")
+        print("show column: Displays the list of columns of the current table.")
+        print("show column <table>: Displays the list of columns of the given table.")
 
 
-def parse_command(command: str):
-    command = command.split(" ")
+
+def parse_command(response: str, *args):
+    command = response.split(" ")
     try:
         if command[0] == "help":
             show_help(command[1])
+    except IndexError:
+        show_help(command[0])
+    finally:
+        return
 
+    if command[0] == "status":
+        status()
+    elif command[0] == "show":
+        if command[1] == "database":
+            Database.show_databases(link)
+        elif command[1] == "table":
+            try:
+                Database.show_tables(link, command[2])
+            except IndexError:
+                Database.show_tables(link)
+        elif command[1] == "column":
+            try:
+                Database.show_columns(link, command[2])
+            except IndexError:
+                Database.show_columns(link, __current_table)
         
 
 while (True):
