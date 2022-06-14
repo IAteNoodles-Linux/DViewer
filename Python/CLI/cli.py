@@ -54,15 +54,13 @@ def show_help(command: str):
 
 
 
-def parse_command(response: str, *args):
+def parse_command(response: str):
     command = response.split(" ")
     try:
         if command[0] == "help":
             show_help(command[1])
     except IndexError:
         show_help(command[0])
-    finally:
-        return
 
     if command[0] == "status":
         status()
@@ -78,8 +76,12 @@ def parse_command(response: str, *args):
             try:
                 Database.show_columns(link, command[2])
             except IndexError:
-                Database.show_columns(link, __current_table)
-        
+                Database.show_columns(link)
+        else:
+            print("Invalid usage of show. See help for more information.")
+    else:
+        print("Unknown command: ", command)
+    return 
 
 while (True):
     command = input("Enter a command: ")

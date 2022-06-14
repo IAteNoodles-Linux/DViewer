@@ -3,7 +3,9 @@
 import sys
 import mariadb
 
-def forge_connection(user: str, password: str, host: str, database: str):
+# Variables
+
+def __init__(self, user: str, password: str, host: str, database: str):
     """
     Create a connection to a database.
 
@@ -13,19 +15,19 @@ def forge_connection(user: str, password: str, host: str, database: str):
         host: Hostname.
         database: Database name.
     """
-
+    self.current_table = None
     try:
         return mariadb.connect(host=host, user=user, password=password, database=database)
     except mariadb.Error as e:
         print("Error %d: %s" % (e.args[0], e.args[1]))
         sys.exit(1)
 
-def send_command(connection ,command: str, commit=False, fetch=True):
+def send_command(self, command: str, commit=False, fetch=True):
     """
     Send a command to the database and return the result
 
     Args:
-        connection: Connection to the database.
+        self: Connection to the database.
         command: Command to send to the database.
         commit: Whether to commit the changes. Default is False.
         fetch: Number of rows to fetch. Default is True, which means to fetch all rows.
@@ -35,10 +37,10 @@ def send_command(connection ,command: str, commit=False, fetch=True):
     """
 
     try:
-        cursor = connection.cursor()
+        cursor = self.cursor()
         cursor.execute(command)
         if commit:
-            connection.commit()
+            self.commit()
         if fetch:
             return cursor.fetchall()
         else:
@@ -64,14 +66,14 @@ def print__data_as_dictionary(key: list,data: tuple):
     for i in range(len(key)):
         print(key[i], data[i])
 
-def show_databases(connection):
+def show_databases(self):
     """
     Show all databases.
     """
     command = "SHOW DATABASES"
-    return send_command(connection, command)
+    return send_command(self.connection, command)
 
-def show_permissions_on_database(connection, database: str):
+def show_permissions_on_database(self, database: str):
     """
     Show the permissions on a database.
 
@@ -79,9 +81,9 @@ def show_permissions_on_database(connection, database: str):
         database: Name of the database to show the permissions on.
     """
     command = "SELECT * FROM mysql.db WHERE Db = '%s'" % database
-    return send_command(connection, command)
+    return send_command(self.connection, command)
 
-def update_permissions_on_database(connection, database: str, user: str, host: str, permissions: str):
+def update_permissions_on_database(self, database: str, user: str, host: str, permissions: str):
     """
     Update the permissions on a database.
 
@@ -93,9 +95,9 @@ def update_permissions_on_database(connection, database: str, user: str, host: s
     """
 
     command = "GRANT %s ON %s.* TO '%s'@'%s'" % (permissions, database, user, host)
-    return send_command(connection, command)
+    return send_command(self.connection, command)
 
-def switch_database(connection, database: str):
+def switch_database(self, database: str):
     """
     Switch to a different database.
     
@@ -103,9 +105,9 @@ def switch_database(connection, database: str):
         database: Name of the database to switch to.
     """
     command = "USE %s" % database
-    return send_command(connection, command)
+    return send_command(self.connection, command)
 
-def show_tables(connection, *args):
+def show_tables(self, *args):
     """
     Show all tables in the database.
     """
@@ -113,19 +115,46 @@ def show_tables(connection, *args):
         command = "SHOW TABLES FROM %s" % args[0]
     else:
         command = "SHOW TABLES"
-    return send_command(connection, command)
+    return send_command(self.connection, command)
 
-def show_columns(connection, table_name: str):
+def select_table(self, table_name: str):
+    """
+    Selects a table to work with.
+
+    Args:
+        table_name: Name of the table to select.
+    """
+    self.current_table = table_name
+
+def show_columns(self, *args):
     """
     Get the columns and types of a table.
 
     Args:
-        table_name: Name of the table to get the columns and types from.
-    """
-    command = "DESCRIBE %s" % table_name
-    return send_command(connection, command)
+        table_name: Name of the table to get the columns and types from. If not specified, the current table is used.
 
-def create_table(connection, table_name: str, columns_with_types: dict):
+    Returns:
+        dict: Dictionary of columns and their attributes.
+        {name: {column_type, is_nullable, key, default, extra}}
+
+    """
+    if len(args) == 0:
+        command = "SHOW COLUMNS FROM %s" % self.current_table
+    else:
+        command = "DESCRIBE %s" % args[0]
+    data = send_command(self.connection, command)
+    columns = {}
+    for row in data:
+        columns[row[0]] = {
+            "column_type": row[1],
+            "is_nullable": row[2],
+            "key": row[3],
+            "default": row[4],
+            "extra": row[5]
+        }
+    return columns
+
+def create_table(self,  table_name: str, columns_with_types: dict):
     """
     Create a table.
 
@@ -133,42 +162,52 @@ def create_table(connection, table_name: str, columns_with_types: dict):
         table_name: Name of the table to create.
         columns_with_types: Dictionary of columns and their types.
     """
-    command = "CREATE TABLE %s (%s)" % (table_name, columns_with_types)
-    return send_command(connection, command)
+    command = "CREATE TABLE %s (%s)" % (table_name, ", ".join(["%s %s" % (key, columns_with_types[key]) for key in columns_with_types.keys()]))
+    return send_command(self.connection, command)
 
-def insert_data(connection, table_name: str, **kwargs):
+def insert_data(self, *args, **kwargs):
     """
     Insert data into a table.
 
     Args:
-        table_name: Name of the table to insert data into.
+        table_name: Name of the table to insert data into. If not specified, the current table is used.
         **kwargs: Keyword arguments. The key is the column name and the value is the data to insert.
     """
+    if len(args) == 0:
+        table_name = self.current_table
+    else:
+        table_name = args[0]
     command = "INSERT INTO %s (%s) VALUES (%s)" % (table_name, ", ".join(kwargs.keys()), ", ".join(["'%s'" % kwargs[key] for key in kwargs.keys()]))
-    return send_command(connection, command)
+    return send_command(self.connection, command)
 
-def get_data(connection, table_name: str, *data):
+def get_data(self, *data):
     """
     Get data from a table.
 
     Args:
         table_name: Name of the table to get data from.
-        *data: Data to get from the table.
+        columns: List of columns to get data from. If not specified, all columns are used.
     """
-    command = "SELECT %s FROM %s" % (", ".join(data), table_name)
-    return send_command(connection, command)
+    if len(data) == 1:
+        command = "SELECT * FROM %s" % data[0]
+    else:
+        command = "SELECT %s FROM %s" % (", ".join(data[1:]), data[0])
+    return send_command(self.connection, command)
 
-def get_table_creation_script(connection, table_name: str):
+def get_table_creation_script(self, *args):
     """
     Returns the creation script for a table.
 
     Args:
         table_name: Name of the table to show the creation script for.
     """
-    command = "SHOW CREATE TABLE %s" % table_name
-    return send_command(connection, command)
+    if len(args) == 0:
+        command = "SHOW CREATE TABLE %s" % self.current_table
+    else:
+        command = "SHOW CREATE TABLE %s" % table_name
+    return send_command(self.connection, command)
 
-def join_table(connection, left: str, right: str, join_type: str, conditions: str):
+def join_table(self, left: str, right: str, join_type: str, conditions: str):
     """
     Join two tables.
 
@@ -179,16 +218,19 @@ def join_table(connection, left: str, right: str, join_type: str, conditions: st
         conditions: Conditions to join on.
     """
     command = "SELECT * FROM %s %s JOIN %s ON %s" % (left, join_type, right, conditions)
-    return send_command(connection, command)
+    return send_command(self.connection, command)
 
-def get_foreign_keys(connection, table_name: str):
+def get_foreign_keys(self, *args):
     """
     Get the foreign keys for a table.
 
     Args:
         table_name: Name of the table to get the foreign keys for.
     """
-    command = "SELECT * FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_NAME = '%s' AND REFERENCED_TABLE_NAME IS NOT NULL" % table_name
-    return send_command(connection, command)
+    if len(args) == 0:
+        command = "SELECT * FROM information_schema.key_column_usage WHERE REFERENCED_TABLE_NAME = '%s'" % self.current_table
+
+    command = "SELECT * FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_NAME = '%s' AND REFERENCED_TABLE_NAME IS NOT NULL" % args[0]
+    return send_command(self.connection, command)
 
 
